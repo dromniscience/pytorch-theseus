@@ -452,6 +452,13 @@ class TORCH_API ProcessGroupNCCL : public Backend {
       std::vector<at::Tensor>& outputTensors,
       std::vector<at::Tensor>& inputTensors,
       const AllToAllOptions& opts = AllToAllOptions()) override;
+  
+  c10::intrusive_ptr<Work> alltoallv(
+      at::Tensor& outputTensor,
+      at::Tensor& inputTensor,
+      at::Tensor& cntMatrixCpu,
+      at::Tensor& cntMatrixGpu,
+      const AllToAllOptions& opts = AllToAllOptions()) override;
 
   c10::intrusive_ptr<Work> send(
       std::vector<at::Tensor>& tensors,

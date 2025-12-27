@@ -3485,6 +3485,37 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::alltoall(
       "nccl:all_to_all");
 }
 
+c10::intrusive_ptr<Work> ProcessGroupNCCL::alltoallv(
+    at::Tensor& outputTensor,
+    at::Tensor& inputTensor,
+    at::Tensor& cntMatrixCpu,
+    at::Tensor& cntMatrixGpu,
+    const AllToAllOptions& opts) {
+  auto device = outputTensor.device();
+  std::vector<at::Tensor> inputTensors = {inputTensor};
+  std::vector<at::Tensor> outputTensors = {outputTensor};
+  
+  return collective(
+        inputTensors,
+        outputTensors,
+        [&](at::Tensor& input,
+            at::Tensor& output,
+            ncclComm_t comm,
+            at::cuda::CUDAStream& stream) {
+          torch::cuda::nccl::all2allv(
+              input.data_ptr(),
+              output.data_ptr(),
+              (size_t*)cntMatrixCpu.data_ptr(),
+              (size_t*)cntMatrixGpu.data_ptr(),
+              input.scalar_type(),
+              comm,
+              stream);
+          return ncclSuccess;
+        },
+        OpType::ALLTOALL_BASE,
+        "nccl:all_to_all_v");
+}
+
 c10::intrusive_ptr<Work> ProcessGroupNCCL::send(
     std::vector<at::Tensor>& tensors,
     int dstRank,

@@ -44,7 +44,7 @@ __all__ = [
     'Backend', 'BackendConfig', 'GroupMember', 'P2POp', 'all_gather', 'all_gather_coalesced',
     'all_gather_multigpu', 'all_gather_object', 'all_reduce',
     'all_reduce_coalesced', 'all_reduce_multigpu', 'all_to_all',
-    'all_to_all_single', 'barrier', 'batch_isend_irecv', 'broadcast',
+    'all_to_all_single', 'all_to_all_v', 'barrier', 'batch_isend_irecv', 'broadcast',
     'broadcast_multigpu', 'broadcast_object_list', 'destroy_process_group',
     'gather', 'gather_object', 'get_backend_config', 'get_backend', 'get_rank',
     'get_world_size', 'group', 'init_process_group', 'irecv',
@@ -3701,6 +3701,53 @@ def all_to_all(output_tensor_list, input_tensor_list, group=None, async_op=False
         work = default_pg.alltoall(output_tensor_list, input_tensor_list, opts)
     else:
         work = group.alltoall(output_tensor_list, input_tensor_list, opts)
+
+    if async_op:
+        return work
+    else:
+        work.wait()
+
+@_exception_logger
+def all_to_all_v(
+    output,
+    input,
+    cnt_matrix_cpu,
+    cnt_matrix_gpu,
+    group=None,
+    async_op=False,
+):
+    if _rank_not_in_group(group):
+        _warn_not_in_group("all_to_all_v")
+        return
+
+    opts = AllToAllOptions()
+    _check_single_tensor(output, "output")
+    _check_single_tensor(input, "input")
+    _ensure_all_tensors_same_dtype(output, input)
+
+    if cnt_matrix_cpu.dtype != torch.int64:
+        raise TypeError(
+            "Invalid function argument: cnt_matrix_cpu type should be torch.int64"
+        )
+    if cnt_matrix_gpu.dtype != torch.int64:
+        raise TypeError(
+            "Invalid function argument: cnt_matrix_gpu type should be torch.int64"
+        )
+
+    if input.is_complex():
+        input = torch.view_as_real(input)
+    if output.is_complex():
+        output = torch.view_as_real(output)
+
+    if group is None:
+        default_pg = _get_default_group()
+        work = default_pg.alltoallv(
+            output, input, cnt_matrix_cpu, cnt_matrix_gpu, opts
+        )
+    else:
+        work = group.alltoallv(
+            output, input, cnt_matrix_cpu, cnt_matrix_gpu, opts
+        )
 
     if async_op:
         return work

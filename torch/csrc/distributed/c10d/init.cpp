@@ -1638,6 +1638,15 @@ Arguments:
               py::arg("opts") = ::c10d::AllToAllOptions(),
               py::call_guard<py::gil_scoped_release>())
           .def(
+              "alltoallv",
+              &::c10d::ProcessGroup::alltoallv,
+              py::arg("output"),
+              py::arg("input"),
+              py::arg("cnt_matrix_cpu"),
+              py::arg("cnt_matrix_gpu"),
+              py::arg("opts") = ::c10d::AllToAllOptions(),
+              py::call_guard<py::gil_scoped_release>())
+          .def(
               "send",
               &::c10d::ProcessGroup::send,
               py::arg("tensors"),
@@ -2079,6 +2088,15 @@ options :class:`~torch.distributed.ProcessGroupNCCL.Options`).
               &::c10d::Backend::alltoall,
               py::arg("output_tensor"),
               py::arg("input_tensor"),
+              py::arg("opts") = ::c10d::AllToAllOptions(),
+              py::call_guard<py::gil_scoped_release>())
+          .def(
+              "alltoallv",
+              &::c10d::Backend::alltoallv,
+              py::arg("output"),
+              py::arg("input"),
+              py::arg("cnt_matrix_cpu"),
+              py::arg("cnt_matrix_gpu"),
               py::arg("opts") = ::c10d::AllToAllOptions(),
               py::call_guard<py::gil_scoped_release>())
           .def(

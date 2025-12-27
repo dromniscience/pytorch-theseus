@@ -255,6 +255,17 @@ class TORCH_API Backend : public torch::CustomClassHolder {
         c10::str("Backend ", getBackendName(), " does not support alltoall"));
   }
 
+  virtual c10::intrusive_ptr<Work> alltoallv(
+      at::Tensor& outputTensor,
+      at::Tensor& inputTensor,
+      at::Tensor& cntMatrixCpu,
+      at::Tensor& cntMatrixGpu,
+      const AllToAllOptions& opts = AllToAllOptions()) {
+    TORCH_CHECK(
+        false,
+        c10::str("Backend ", getBackendName(), " does not support alltoallv"));
+  }
+
   virtual void monitoredBarrier(
       const BarrierOptions& /* unused */,
       bool /* unused */ = false) {

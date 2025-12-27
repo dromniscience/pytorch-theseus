@@ -458,6 +458,30 @@ class TORCH_API ProcessGroup : public torch::CustomClassHolder {
         opts.timeout.count()));
   }
 
+  virtual c10::intrusive_ptr<Work> alltoallv(
+      at::Tensor& outputBuffer,
+      at::Tensor& inputBuffer,
+      at::Tensor& cntMatrixCpu,
+      at::Tensor& cntMatrixGpu,
+      const AllToAllOptions& opts = AllToAllOptions()) {
+    static auto op = c10::Dispatcher::singleton()
+                         .findSchemaOrThrow("c10d::alltoallv_", "")
+                         .typed<c10::intrusive_ptr<::c10d::Work>(
+                             at::Tensor&,
+                             at::Tensor&,
+                             const c10::intrusive_ptr<::c10d::ProcessGroup>&,
+                             at::Tensor&,
+                             at::Tensor&,
+                             int64_t)>();
+    return op.call(
+        outputBuffer,
+        inputBuffer,
+        c10::intrusive_ptr<ProcessGroup>::unsafe_reclaim_from_nonowning(this),
+        cntMatrixCpu,
+        cntMatrixGpu,
+        opts.timeout.count());
+  }
+
   virtual void monitoredBarrier(
       const BarrierOptions& opts,
       bool wait_all_ranks = false) {

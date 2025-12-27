@@ -47,6 +47,8 @@ TORCH_LIBRARY(c10d, m) {
   m.def(
       "alltoall_base_(Tensor output, Tensor input, __torch__.torch.classes.c10d.ProcessGroup process_group, int[] output_split_sizes, int[] input_split_sizes, int timeout) -> __torch__.torch.classes.c10d.Work");
   m.def(
+      "alltoallv_(Tensor outputBuffer, Tensor inputBuffer, __torch__.torch.classes.c10d.ProcessGroup process_group, Tensor cntMatrixCpu, Tensor cntMatrixGpu, int timeout) -> __torch__.torch.classes.c10d.Work");
+  m.def(
       "barrier(Tensor tensor, __torch__.torch.classes.c10d.ProcessGroup process_group, int[] device_ids, int timeout) -> __torch__.torch.classes.c10d.Work");
   m.def(
       "monitored_barrier_(Tensor tensor, __torch__.torch.classes.c10d.ProcessGroup process_group, int[] device_ids, int timeout, bool wait_all_ranks) -> ()");
@@ -434,6 +436,27 @@ IMPL_ALLTOALL_BASE(CPU)
 IMPL_ALLTOALL_BASE(CUDA)
 IMPL_ALLTOALL_BASE(PrivateUse1)
 
+#define IMPL_ALLTOALLV(DEV)                                       \
+  c10::intrusive_ptr<Work> alltoallv_##DEV(                       \
+      at::Tensor& output,                                         \
+      at::Tensor& input,                                          \
+      const c10::intrusive_ptr<ProcessGroup>& process_group,      \
+      at::Tensor& cnt_matrix_cpu,                                 \
+      at::Tensor& cnt_matrix_gpu,                                 \
+      int64_t timeout) {                                          \
+    return process_group->getBackend(c10::DeviceType::DEV)        \
+        ->alltoallv(                                              \
+            output,                                               \
+            input,                                                \
+            cnt_matrix_cpu,                                       \
+            cnt_matrix_gpu,                                       \
+            AllToAllOptions{std::chrono::milliseconds(timeout)}); \
+  }
+
+IMPL_ALLTOALLV(CPU)
+IMPL_ALLTOALLV(CUDA)
+IMPL_ALLTOALLV(PrivateUse1)
+
 #define IMPL_BARRIER(DEV)                                                    \
   c10::intrusive_ptr<Work> barrier##DEV(                                     \
       at::Tensor /* unused */,                                               \
@@ -520,6 +543,7 @@ REGISTER_C10D_OP(scatter_)
 REGISTER_C10D_OP(alltoall_)
 REGISTER_C10D_OP(alltoall_base_)
 REGISTER_C10D_OP(barrier)
+REGISTER_C10D_OP(alltoallv_)
 
 // The following ops are specialized, register them separately
 

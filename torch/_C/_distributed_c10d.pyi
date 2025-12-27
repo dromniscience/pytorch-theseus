@@ -368,6 +368,15 @@ class ProcessGroup:
         output: List[Tensor],
         input: List[Tensor],
     ) -> Work: ...
+    @overload
+    def alltoallv(
+        self,
+        output: Tensor,
+        input: Tensor,
+        cntMatrixCpu: Tensor,
+        cntMatrixGpu: Tensor,
+        opts=...,
+    ) -> Work: ...
     def send(
         self,
         tensors: List[Tensor],

@@ -203,6 +203,16 @@ TORCH_CUDA_CPP_API void all2all(
     ncclComm_t _comm,
     at::cuda::CUDAStream& stream);
 
+TORCH_CUDA_CPP_API void all2allv(
+  const void *sendbuff,
+  void *recvbuff,
+  const size_t *cntMatrixCpu,
+  const size_t *cntMatrixGpu,
+  c10::ScalarType type,
+  ncclComm_t comm,
+  at::cuda::CUDAStream& stream
+);
+
 TORCH_CUDA_CPP_API void send(
     const at::Tensor& input,
     ncclComm_t comm,

@@ -895,6 +895,34 @@ void all2all_single_unequal_split(
 #endif
 }
 
+void all2allv(
+  const void* sendbuff,
+  void* recvbuff,
+  const size_t *cntMatrixCpu,
+  const size_t *cntMatrixGpu,
+  c10::ScalarType _type,
+  ncclComm_t _comm,
+  at::cuda::CUDAStream& stream) {
+#ifdef USE_NCCL
+  using namespace torch::cuda::nccl::detail;
+  auto type = to_nccl_data_type(_type);
+  auto comm = to_nccl_comm(_comm);
+  int numranks;
+  NCCL_CHECK(ncclCommCount(comm, &numranks));
+  NCCL_CHECK(ncclAlltoAllv(
+    sendbuff,
+    recvbuff,
+    cntMatrixCpu,
+    cntMatrixGpu,
+    type,
+    comm,
+    stream
+  ));
+#else
+  AT_ERROR("PyTorch built without NCCL support");
+#endif
+}
+
 void all2all(
     std::vector<at::Tensor>& outputTensors,
     std::vector<at::Tensor>& inputTensors,
