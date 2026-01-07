@@ -13,17 +13,16 @@ Note that calling this API on other backends will raise runtime errors because i
 Other than providing this new API, no more code change is made.
 
 The signature of the new API is as follows.
-`output_tensor` and `input_tensor` should be PyTorch tensors on CUDA devices.
-`cnt_matrix_cpu_tensor` and `cnt_matrix_gpu_tensor` should be two tensors of shape `(N,N)` and data type `torch.int64`, where `N` is the size of the process group and `[i][j]` is the number of elements sent from Rank `i` to Rank `j`.
-These two matrices should have the same content, with the only difference being that the first is a CPU tensor, and the later is a GPU tensor on the same device as `output_tensor` and `input_tensor`.
+`output_tensor` and `input_tensor` should be PyTorch tensors on CUDA devices, where each line is a token (i.e., `output_tensor[i]` and `input_tensor[i]`).
+`cnt_matrix` should be a tensor of shape `(N,N)` and data type `torch.int64`, where `N` is the size of the process group and `[i][j]` is the number of tokens sent from Rank `i` to Rank `j`.
+The location of this traffic matrix can be either CPU or the current GPU device.
 ```
-torch.distributed.all_to_all_v(output_tensor, input_tensor, cnt_matrix_cpu_tensor, cnt_matrix_gpu_tensor, group=None, async_op=False)
+torch.distributed.all_to_all_v(output_tensor, input_tensor, cnt_matrix, group=None, async_op=False)
 ```
 
-> **Aside:** The CPU-side traffic matrix tensor is used for schedule planning before launching the GPU kernel, while the device-side traffic matrix tensor is read by the GPU kernel during execution.
-The full matrix are needed for the optimal execution of AlltoAllv on GPUs.
+> **Aside:** Each rank should pass in the full traffic matrix because the optimized schedule planning in `torch.distributed.all_to_all_v` requires the full traffic information.
 In contrast,
-`torch.distributed.all_to_all_single` only requires a row and column in this matrix as `input_split` and `output_split` but its implementation is highly suboptimal (i.e., full-mesh `ncclSend` and `ncclRecv`).
+`torch.distributed.all_to_all_single` only requires a row and column in this matrix as `input_split` and `output_split` but its implementation is highly suboptimal (i.e., full-mesh `ncclSend` and `ncclRecv`) in multi-node MoE wordloads.
 
 ## Build and Run with Theseus
 
@@ -38,7 +37,7 @@ export USE_NCCL=ON
 export USE_SYSTEM_NCCL=ON
 export NCCL_INCLUDE_DIR=[Thesues installation]/include
 export NCCL_LIB_DIR=[Thesues installation]/lib
-python setup.py install --prefix [PyTorch extension installation]
+python setup.py install --prefix [PyTorch installation]
 ```
 Here, `[Theseus installation]` refers to the place where you installed Theseus.
 As a sanity check, you should see the file `nccl.h` and two directories `theseus/` and `mscclpp/` in the directory `[Thesues installation]/include`.
@@ -48,28 +47,33 @@ The first four environment variables `USE_NCCL`/`USE_SYSTEM_NCCL`/`NCCL_INCLUDE_
 Once the compilation and installation succeeds, please execute the following commands before running PyTorch.
 After this, you may run `torchrun` to use this PyTorch extension with Theseus.
 ```shell
-export PYTHONPATH="[PyTorch extension installation]:${PYTHONPATH}"
-export LD_LIBRARY_PATH="${NCCL_LIB_DIR}:${LD_LIBRARY_PATH}"
+export PYTHONPATH="[PyTorch installation]:${PYTHONPATH}"
+export LD_LIBRARY_PATH="${NCCL_LIB_DIR}:[PyTorch installation]/torch/lib:${LD_LIBRARY_PATH}"
 export THESEUS_NCCL_LIB_PATH=[Official NCCL]
 ```
-The `PYTHONPATH` variable shadows the original PyTorch installed on your system. Meanwhile, `LD_LIBRARY_PATH` guides the dynamic linker to load Theseus at runtime. You may restore `PYTHONPATH` and `LD_LIBRARY_PATH` when you want to switch back to the official PyTorch.
+The `PYTHONPATH` variable shadows the original PyTorch installed on your system. Meanwhile, `LD_LIBRARY_PATH` guides the dynamic linker to load the new PyTorch shared library and Theseus at runtime. You may restore `PYTHONPATH` and `LD_LIBRARY_PATH` when you want to switch back to the official PyTorch.
 
 The last environment variable `THESEUS_NCCL_LIB_PATH` dictates Theseus runtime to load the official NCCL as fallback. Since some NCCL APIs are not implemented by Theseus, once PyTorch calls such APIs, Theseus will redirect the call to the fallback NCCL. Otherwise, it would raise an error with NCCL error code `ncclInvalidUsage`.
 
 > **Caution:** Make sure `PYTHONPATH`, `LD_LIBRARY_PATH` and `THESEUS_NCCL_LIB_PATH` are correctly set when running this PyTorch extension with `torchrun`.
 
-Example values for the above environment variables are as follows.
-```
+Example values for the above environment variables are as follows. DON'T copy and paste the following commands. Please adjust their values based on your system paths.
+```shell
 # Installation time
-export NCCL_INCLUDE_DIR=/workspace/theseus/build/include
-export NCCL_LIB_DIR=/workspace/theseus/build/lib
+export NCCL_INCLUDE_DIR=/root/workspace/theseus/build/include
+export NCCL_LIB_DIR=/root/workspace/theseus/build/lib
 # Before runtime
-export PYTHONPATH=/root/local/lib/python3.10/dist-packages:$PYTHONPATH
+export PYTHONPATH=/root/local/lib/python3.10/dist-packages:${PYTHONPATH}
+export LD_LIBRARY_PATH=${NCCL_LIB_DIR}:/root/local/lib/python3.10/dist-packages/torch/lib:${LD_LIBRARY_PATH}
 export THESEUS_NCCL_LIB_PATH=/usr/lib/x86_64-linux-gnu/libnccl.so.2
 ```
 
 Below is the original README of PyTorch.
 
+<br>
+<br>
+<br>
+<br>
 
 ![PyTorch Logo](https://github.com/pytorch/pytorch/blob/main/docs/source/_static/img/pytorch-logo-dark.png)
 

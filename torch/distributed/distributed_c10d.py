@@ -3711,8 +3711,7 @@ def all_to_all(output_tensor_list, input_tensor_list, group=None, async_op=False
 def all_to_all_v(
     output,
     input,
-    cnt_matrix_cpu,
-    cnt_matrix_gpu,
+    cnt_matrix,
     group=None,
     async_op=False,
 ):
@@ -3725,14 +3724,33 @@ def all_to_all_v(
     _check_single_tensor(input, "input")
     _ensure_all_tensors_same_dtype(output, input)
 
-    if cnt_matrix_cpu.dtype != torch.int64:
+    # Ensure dtype of the traffix matrix is int64
+    if cnt_matrix.dtype != torch.int64:
         raise TypeError(
-            "Invalid function argument: cnt_matrix_cpu type should be torch.int64"
+            "Invalid function argument: cnt_matrix dtype should be torch.int64"
         )
-    if cnt_matrix_gpu.dtype != torch.int64:
-        raise TypeError(
-            "Invalid function argument: cnt_matrix_gpu type should be torch.int64"
+    if not torch.cuda.is_available():
+        raise RuntimeError("all_to_all_v requires CUDA support.")
+    # Check cnt_matrix and create CPU and GPU copies of cnt_matrix
+    current_rank = get_rank(group)
+    current_device = torch.cuda.current_device()
+    if input.shape[0] < torch.sum(cnt_matrix[current_rank,:]):
+        raise RuntimeError(
+            f"Invalid function argument: input tensor's first dimension ({input.shape[0]})"
+            f" is smaller than the sum of row {current_rank} in cnt_matrix ({torch.sum(cnt_matrix[current_rank,:])})."
         )
+    if output.shape[0] < torch.sum(cnt_matrix[:,current_rank]):
+        raise RuntimeError(
+            f"Invalid function argument: output tensor's first dimension ({output.shape[0]})"
+            f" is smaller than the sum of column {current_rank} in cnt_matrix ({torch.sum(cnt_matrix[:,current_rank])})."
+        )
+    scale_factor = torch.numel(input) // input.shape[0]
+    if scale_factor != torch.numel(output) // output.shape[0]:
+      raise TypeError(
+            "Invalid function argument: input and output tensors have incompatible shapes."
+      )
+    cnt_matrix_cpu = torch.clone(cnt_matrix, memory_format=torch.contiguous_format).detach().cpu() * scale_factor
+    cnt_matrix_gpu = torch.clone(cnt_matrix, memory_format=torch.contiguous_format).detach().to(f'cuda:{current_device}') * scale_factor
 
     if input.is_complex():
         input = torch.view_as_real(input)
