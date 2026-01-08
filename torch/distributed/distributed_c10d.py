@@ -3744,8 +3744,9 @@ def all_to_all_v(
             f"Invalid function argument: output tensor's first dimension ({output.shape[0]})"
             f" is smaller than the sum of column {current_rank} in cnt_matrix ({torch.sum(cnt_matrix[:,current_rank])})."
         )
-    scale_factor = torch.numel(input) // input.shape[0]
-    if scale_factor != torch.numel(output) // output.shape[0]:
+    scale_factor = torch.tensor(1, dtype=torch.int64) if len(input.shape) < 2 else torch.prod(torch.tensor(input.shape[1:], dtype=torch.int64))
+    scale_factor_output = torch.tensor(1, dtype=torch.int64) if len(output.shape) < 2 else torch.prod(torch.tensor(output.shape[1:], dtype=torch.int64))
+    if scale_factor != scale_factor_output:
       raise TypeError(
             "Invalid function argument: input and output tensors have incompatible shapes."
       )
